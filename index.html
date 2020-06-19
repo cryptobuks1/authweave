@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="description" content="Safely backup your 2FA secret keys!">
+		<meta name="author" content="inspireme6">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		
+		<title>Authweave</title>
+
+		<script src="https://unpkg.com/arweave/bundles/web.bundle.min.js"></script>
+		<script src="https://unpkg.com/@otplib/preset-browser@^12.0.0/buffer.js"></script>
+		<script src="https://unpkg.com/@otplib/preset-browser@^12.0.0/index.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+		<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css">
+		<link rel="shortcut icon" type="image/png" href="img/authweave.png"/>
+		
+		<style type="text/css">
+			html {
+			  height: 100%;
+			}
+			body {
+			  position: relative;
+			  margin: 0;
+			  min-height: 100%;
+			}
+			.file-input{
+				height: 200px;
+				border: 2px dashed #62666f;
+				text-align: center;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				position: relative;
+				margin: auto;
+				max-width: 300px;
+			}
+			.file-input input[type=file]{
+				opacity: 0;
+				position: absolute;
+				background: none;
+				width: 100%;
+				height: 100%;
+			}
+			.clickable {
+				cursor: pointer;
+			}
+			.ls {
+				letter-spacing: 12px;
+			}
+			.viewkeylbl {
+				font-size: 0.7em;
+			}
+			footer {
+				position: absolute;
+				right: 0;
+				bottom: 0;
+				left: 0;
+				background-color: #efefef;
+				text-align: center;				
+			}
+			@media screen and (max-width: 767px) {
+				h1 {
+					font-size: 24px;
+				}
+			}
+			@media screen and (max-width: 420px) {
+				.lbl {
+					font-size: 11px;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div id="about" class="container content-section">
+			<div class="row text-center justify-content-center mt-3">
+				<div class="col-lg-6 text-center">
+					<div class="pb-2 mt-4 mb-2 border-bottom">
+						<img id="idicon" width="80px" src="img/authweave.png">
+						<h1 class="text-center">Authweave</h1>
+						<p>Safely backup your 2FA secret keys!</p>
+					</div>
+				</div>
+			</div>
+			<div class="not-logged-in mt-3">
+				<div class="file-input">
+					<input class="clickable" type="file" id="file" onchange="login(this.files)" onclick="this.value=null;">
+					<div id="desc">Login using your wallet keyfile.</div>
+				</div>
+				<div class="mt-3">
+					<p style="text-align: center;">
+						Need a wallet? Click <a href="https://tokens.arweave.org/" target="_blank">here</a>!
+					</p>
+				</div>
+			</div>
+			<div class="logged-in tfa-options mt-3" style="display: none;">
+				<div class="modal fade" id="secretKeyModal" tabindex="-1" role="dialog" aria-labelledby="secretKeyModalTtitle" aria-hidden="true">
+				  <div class="modal-dialog modal-dialog-centered" role="document">
+					<div class="modal-content">
+					  <div class="modal-header">
+						<h5 class="modal-title">Your secret key:</h5>
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+						  <span aria-hidden="true">&times;</span>
+						</button>
+					  </div>
+					  <div class="modal-body">
+					  </div>
+					</div>
+				  </div>
+				</div>
+				<div class="tfa-display mt-3" style="display: none;">
+					<div class="row text-center justify-content-center mt-3">
+						<div class="col-lg-3 text-center border tfa-container">
+							<p></p>
+							<span class="tfa-name"></span>
+							<h3 class="ls tfa-code"></h3>
+							<p>Next code in: <span id="tfa-timer"></span>s</p>
+							<a class="viewkeylbl float-right" href="#" data-toggle="modal" data-target="#secretKeyModal">(view key)</a>
+						</div>
+					</div>
+				</div>
+				<div class="row text-center justify-content-center mt-3">
+					<div class="col-lg-5 text-center">
+						<ul class="nav nav-pills justify-content-center" id="myTab" role="tablist">
+						  <li class="nav-item">
+							<a class="nav-link active" id="addkey-tab" data-toggle="tab" href="#add-key" role="tab" aria-controls="add-key" aria-selected="true">Add a new key</a>
+						  </li>
+						  <li class="nav-item">
+							<a class="nav-link disabled" id="generatecode-tab" data-toggle="tab" href="#generate-code" role="tab" aria-controls="generate-code" aria-selected="false">Generate a code</a>
+						  </li>
+						</ul>
+						<div class="tab-content" id="myTabContent">
+						  <div class="tab-pane fade show active" id="add-key" role="tabpanel" aria-labelledby="addkey-tab">
+							<form action="#" id="saveForm">
+								<div class="form-group mt-3">
+									<label>Name (1-25 chars): </label>
+									<input type="text" class="n-add-key form-control" pattern=".{1,25}" required title="kkkkkkkkkk" autofocus="autofocus" placeholder="Name to identify your secret key...">
+									<label class="mt-2">Your 2FA secret key <i data-toggle="tooltip" title="Your key will be encrypted using AES-256, your keys will be only visible to you." class="fa fa-info-circle"></i>: </label>
+									<input type="text" class="s-add-key form-control" required placeholder="Your secret key...">
+									<button type="submit" class="btn btn-outline-secondary mt-3">
+										<div id="button-n"><i class="fa fa-save"></i> Save</div>
+										<div id="button-l" style="display: none;">
+											<span class="spinner-border spinner-border-sm" role="status"></span>
+											Saving...
+										</div>
+									</button>
+								</div>
+							</form>
+						  </div>
+						  <div class="tab-pane fade mt-3 mb-5" id="generate-code" role="tabpanel" aria-labelledby="generatecode-tab">
+							<div class="loading spinner-border" role="status" style="display: none;">
+							  <span class="sr-only">Loading...</span>
+							</div>
+							<div class="keyTable">
+							</div>
+						  </div>
+						</div>
+					</div>
+				</div>	
+			</div>
+		</div>
+		<footer>
+			created by: inspireme6	-	<a href="https://github.com/inspireme6/authweave" target="_blank">github</a>
+		</footer>
+		
+		<script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
+		<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+		<script src="js/util.js"></script>
+		<script src="js/main.js"></script>
+	</body>
+</html>
